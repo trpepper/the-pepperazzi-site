@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 180" role="img" aria-labelledby="title">
+  <title id="title">The Pepperazzi</title>
+  <g fill="#fffaf3">
+    <text
+      x="360"
+      y="52"
+      text-anchor="middle"
+      font-family="Georgia, 'Times New Roman', serif"
+      font-size="38"
+      font-style="italic"
+    >
+      The
+    </text>
+    <text
+      x="360"
+      y="128"
+      text-anchor="middle"
+      font-family="Georgia, 'Times New Roman', serif"
+      font-size="78"
+      letter-spacing="16"
+    >
+      PEPPERAZZI
+    </text>
+  </g>
+</svg>
