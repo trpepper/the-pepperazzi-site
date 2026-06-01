@@ -112,14 +112,20 @@ function toSafeIdent(value) {
 
 function findPosterForVideo(videoFile, allFiles, publicPath) {
   const videoName = path.basename(videoFile, path.extname(videoFile));
-  const poster = allFiles.find((file) => {
+  const poster = findPosterFilenameForVideo(videoFile, allFiles);
+
+  return poster ? `${publicPath}/${poster}` : undefined;
+}
+
+function findPosterFilenameForVideo(videoFile, allFiles) {
+  const videoName = path.basename(videoFile, path.extname(videoFile));
+
+  return allFiles.find((file) => {
     const extension = path.extname(file).toLowerCase();
     const basename = path.basename(file, extension).toLowerCase();
 
     return imageExtensions.has(extension) && basename === `${videoName.toLowerCase()}-poster`;
   });
-
-  return poster ? `${publicPath}/${poster}` : undefined;
 }
 
 function getPublicDir(config) {
@@ -187,8 +193,177 @@ function getPortfolioCategory(filename) {
   return prefix.trim().toLowerCase() || 'other';
 }
 
+function readJpegDimensions(buffer) {
+  let offset = 2;
+
+  while (offset + 9 < buffer.length) {
+    if (buffer[offset] !== 0xff) {
+      offset += 1;
+      continue;
+    }
+
+    const marker = buffer[offset + 1];
+    const length = buffer.readUInt16BE(offset + 2);
+
+    if (
+      marker >= 0xc0 &&
+      marker <= 0xcf &&
+      ![0xc4, 0xc8, 0xcc].includes(marker)
+    ) {
+      return {
+        width: buffer.readUInt16BE(offset + 7),
+        height: buffer.readUInt16BE(offset + 5),
+      };
+    }
+
+    offset += 2 + length;
+  }
+
+  return undefined;
+}
+
+function readWebpDimensions(buffer) {
+  if (buffer.toString('ascii', 0, 4) !== 'RIFF' || buffer.toString('ascii', 8, 12) !== 'WEBP') {
+    return undefined;
+  }
+
+  let offset = 12;
+
+  while (offset + 8 <= buffer.length) {
+    const chunkType = buffer.toString('ascii', offset, offset + 4);
+    const chunkSize = buffer.readUInt32LE(offset + 4);
+    const dataOffset = offset + 8;
+
+    if (chunkType === 'VP8X' && dataOffset + 10 <= buffer.length) {
+      return {
+        width:
+          1 +
+          buffer[dataOffset + 4] +
+          (buffer[dataOffset + 5] << 8) +
+          (buffer[dataOffset + 6] << 16),
+        height:
+          1 +
+          buffer[dataOffset + 7] +
+          (buffer[dataOffset + 8] << 8) +
+          (buffer[dataOffset + 9] << 16),
+      };
+    }
+
+    if (chunkType === 'VP8L' && dataOffset + 5 <= buffer.length) {
+      const bits = buffer.readUInt32LE(dataOffset + 1);
+
+      return {
+        width: (bits & 0x3fff) + 1,
+        height: ((bits >> 14) & 0x3fff) + 1,
+      };
+    }
+
+    if (chunkType === 'VP8 ' && dataOffset + 10 <= buffer.length) {
+      return {
+        width: buffer.readUInt16LE(dataOffset + 6) & 0x3fff,
+        height: buffer.readUInt16LE(dataOffset + 8) & 0x3fff,
+      };
+    }
+
+    offset += 8 + chunkSize + (chunkSize % 2);
+  }
+
+  return undefined;
+}
+
+function readAvifDimensions(buffer, start = 0, end = buffer.length) {
+  let offset = start;
+
+  while (offset + 8 <= end) {
+    let boxSize = buffer.readUInt32BE(offset);
+    const boxType = buffer.toString('ascii', offset + 4, offset + 8);
+    let headerSize = 8;
+
+    if (boxSize === 1 && offset + 16 <= end) {
+      const largeSize = buffer.readBigUInt64BE(offset + 8);
+
+      if (largeSize > BigInt(Number.MAX_SAFE_INTEGER)) {
+        return undefined;
+      }
+
+      boxSize = Number(largeSize);
+      headerSize = 16;
+    }
+
+    if (boxSize < headerSize || offset + boxSize > end) {
+      break;
+    }
+
+    const dataOffset = offset + headerSize;
+
+    if (boxType === 'ispe' && dataOffset + 12 <= offset + boxSize) {
+      return {
+        width: buffer.readUInt32BE(dataOffset + 4),
+        height: buffer.readUInt32BE(dataOffset + 8),
+      };
+    }
+
+    const childStart = boxType === 'meta' ? dataOffset + 4 : dataOffset;
+    const dimensions = readAvifDimensions(buffer, childStart, offset + boxSize);
+
+    if (dimensions) {
+      return dimensions;
+    }
+
+    offset += boxSize;
+  }
+
+  return undefined;
+}
+
+function readImageDimensions(filePath, extension) {
+  try {
+    const buffer = fs.readFileSync(filePath);
+
+    if (extension === '.png' && buffer.length >= 24) {
+      return {
+        width: buffer.readUInt32BE(16),
+        height: buffer.readUInt32BE(20),
+      };
+    }
+
+    if (extension === '.gif' && buffer.length >= 10) {
+      return {
+        width: buffer.readUInt16LE(6),
+        height: buffer.readUInt16LE(8),
+      };
+    }
+
+    if (extension === '.jpg' || extension === '.jpeg') {
+      return readJpegDimensions(buffer);
+    }
+
+    if (extension === '.webp') {
+      return readWebpDimensions(buffer);
+    }
+
+    if (extension === '.avif') {
+      return readAvifDimensions(buffer);
+    }
+  } catch {
+    return undefined;
+  }
+
+  return undefined;
+}
+
+function toHeightRatio(dimensions, fallback = 1) {
+  if (!dimensions?.width || !dimensions?.height) {
+    return fallback;
+  }
+
+  return dimensions.height / dimensions.width;
+}
+
 function getPortfolioItems(config) {
   const files = getFilesInPublicMediaFolder(config, 'portfolio');
+  const publicDir = getPublicDir(config);
+  const mediaDir = path.join(publicDir, 'media', 'portfolio');
 
   const items = files
     .filter((filename) => !isPosterFile(filename))
@@ -197,10 +372,22 @@ function getPortfolioItems(config) {
       const type = videoExtensions.has(extension) ? 'video' : 'image';
       const id = path.basename(filename, extension);
       const label = toTitle(filename) || 'Portfolio item';
+      const posterFilename =
+        type === 'video' ? findPosterFilenameForVideo(filename, files) : undefined;
+      const dimensions =
+        type === 'image'
+          ? readImageDimensions(path.join(mediaDir, filename), extension)
+          : posterFilename
+            ? readImageDimensions(
+                path.join(mediaDir, posterFilename),
+                path.extname(posterFilename).toLowerCase(),
+              )
+            : undefined;
       const item = {
         id,
         type,
         category: getPortfolioCategory(filename),
+        heightRatio: toHeightRatio(dimensions, type === 'video' ? 9 / 16 : 1),
         label,
         alt: `${label} by The Pepperazzi`,
         src: `/media/portfolio/${filename}`,
@@ -208,7 +395,7 @@ function getPortfolioItems(config) {
       };
 
       if (type === 'video') {
-        item.poster = findPosterForVideo(filename, files, '/media/portfolio');
+        item.poster = posterFilename ? `/media/portfolio/${posterFilename}` : undefined;
         item.mimeType = videoMimeTypes[extension];
       }
 

@@ -2,8 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   CalendarDays,
-  Clapperboard,
-  Camera,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -55,15 +53,9 @@ const services = [
   },
 ];
 
-const processSteps = [
-  'A short call to understand the people, place, timing, and what matters most.',
-  'A calm shoot plan with room for real life, movement, weather, and spontaneity.',
-  'A carefully edited gallery or film delivered online, ready to share and treasure.',
-];
-
 const includedClientImageCount = 3;
 const additionalClientImagePrice = 10;
-const clientGalleryRequestEmail = 'hello@thepepperazzi.co.uk';
+const contactEmail = 'trpepper@me.com';
 
 function sanitizeClientCode(value) {
   return value.replace(/\s+/g, '');
@@ -88,28 +80,51 @@ function shuffleItems(items) {
 }
 
 function getPortfolioColumns(items, columnCount) {
-  return items.reduce(
-    (columns, item, index) => {
-      columns[index % columnCount].push({ item, index });
-      return columns;
-    },
-    Array.from({ length: columnCount }, () => []),
-  );
+  const columns = Array.from({ length: columnCount }, () => []);
+  const columnHeights = Array.from({ length: columnCount }, () => 0);
+
+  items.forEach((item, index) => {
+    const shortestColumnIndex = columnHeights.indexOf(Math.min(...columnHeights));
+
+    columns[shortestColumnIndex].push({ item, index });
+    columnHeights[shortestColumnIndex] += item.heightRatio || 1;
+  });
+
+  return columns;
 }
 
 function getPortfolioFilters(items) {
-  const categories = items.reduce((filterCategories, item) => {
-    if (!filterCategories.includes(item.category)) {
-      filterCategories.push(item.category);
-    }
+  const categoryCounts = items.reduce((counts, item) => {
+    const currentCount = counts.get(item.category) ?? 0;
 
-    return filterCategories;
-  }, []);
+    counts.set(item.category, currentCount + 1);
+
+    return counts;
+  }, new Map());
+  const categories = Array.from(categoryCounts.entries()).sort(
+    ([firstCategory, firstCount], [secondCategory, secondCount]) => {
+      if (firstCount !== secondCount) {
+        return secondCount - firstCount;
+      }
+
+      return firstCategory.localeCompare(secondCategory);
+    }
+  );
 
   return [
     { id: 'all', label: 'all' },
-    ...categories.map((category) => ({ id: category, label: category })),
+    ...categories.map(([category]) => ({ id: category, label: category })),
   ];
+}
+
+function getRandomPortfolioImage(items) {
+  const imageItems = items.filter((item) => item.type === 'image');
+
+  if (imageItems.length === 0) {
+    return undefined;
+  }
+
+  return imageItems[Math.floor(Math.random() * imageItems.length)];
 }
 
 function PortfolioMasonryItem({ canOpen, index, item, onOpen }) {
@@ -573,6 +588,10 @@ function App() {
     () => getPortfolioFilters(portfolioItems),
     [portfolioItems],
   );
+  const footerImage = useMemo(
+    () => getRandomPortfolioImage(portfolioItems),
+    [portfolioItems],
+  );
 
   const visiblePortfolioItems =
     activePortfolioFilter === 'all'
@@ -692,7 +711,7 @@ function App() {
       selectedList,
     ].join('\n');
 
-    window.location.href = `mailto:${clientGalleryRequestEmail}?subject=${encodeURIComponent(
+    window.location.href = `mailto:${contactEmail}?subject=${encodeURIComponent(
       subject,
     )}&body=${encodeURIComponent(body)}`;
   };
@@ -879,7 +898,7 @@ function App() {
               </div>
               <a
                 className="service-card__cta"
-                href={`mailto:hello@thepepperazzi.co.uk?subject=${encodeURIComponent(
+                href={`mailto:${contactEmail}?subject=${encodeURIComponent(
                   service.subject,
                 )}`}
               >
@@ -891,23 +910,16 @@ function App() {
         </div>
       </section>
 
-      <section className="process section-pad" aria-label="How it works">
-        <div className="section-heading">
-          <p className="eyebrow">How it works</p>
-          <h2>A simple process that keeps the day feeling easy.</h2>
-        </div>
-        <ol className="process-list">
-          {processSteps.map((step, index) => (
-            <li key={step}>
-              <span>{String(index + 1).padStart(2, '0')}</span>
-              <p>{step}</p>
-            </li>
-          ))}
-        </ol>
-      </section>
-
       <section className="contact" id="contact">
-        <div className="contact__image" aria-hidden="true" />
+        <div
+          className="contact__image"
+          style={
+            footerImage
+              ? { '--contact-image': `url("${footerImage.src}")` }
+              : undefined
+          }
+          aria-hidden="true"
+        />
         <div className="contact__content">
           <p className="eyebrow">Bookings & availability</p>
           <h2>Tell me what you are planning.</h2>
@@ -916,11 +928,11 @@ function App() {
             I will come back with availability, package guidance, and next steps.
           </p>
           <div className="contact-list" aria-label="Contact details">
-            <a href="mailto:hello@thepepperazzi.co.uk">
+            <a href={`mailto:${contactEmail}`}>
               <Mail size={19} aria-hidden="true" />
-              hello@thepepperazzi.co.uk
+              {contactEmail}
             </a>
-            <a href="mailto:hello@thepepperazzi.co.uk?subject=Photography%20and%20videography%20availability">
+            <a href={`mailto:${contactEmail}?subject=Photography%20and%20videography%20availability`}>
               <CalendarDays size={19} aria-hidden="true" />
               Check availability
             </a>
@@ -934,10 +946,13 @@ function App() {
 
       <footer className="footer">
         <p>The Pepperazzi</p>
-        <div>
-          <Camera size={18} aria-hidden="true" />
-          <Clapperboard size={18} aria-hidden="true" />
-        </div>
+        <a
+          className="footer__contact"
+          href={`mailto:${contactEmail}?subject=Photography%20and%20videography%20enquiry`}
+        >
+          <Mail size={17} aria-hidden="true" />
+          Get in touch
+        </a>
       </footer>
 
       {isClientGalleryOpen && (
