@@ -5,7 +5,9 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Facebook,
   Images,
+  Instagram,
   Mail,
   MapPin,
   Pause,
@@ -56,6 +58,18 @@ const services = [
 const includedClientImageCount = 3;
 const additionalClientImagePrice = 10;
 const contactEmail = 'trpepper@me.com';
+const socialLinks = [
+  {
+    href: 'https://www.instagram.com/the_pepper_azzi/',
+    icon: Instagram,
+    label: 'Instagram',
+  },
+  {
+    href: 'https://www.facebook.com/share/18sc5rvhMD/?mibextid=wwXIfr',
+    icon: Facebook,
+    label: 'Facebook',
+  },
+];
 
 function sanitizeClientCode(value) {
   return value.replace(/\s+/g, '');
@@ -118,7 +132,12 @@ function getPortfolioFilters(items) {
 }
 
 function getRandomPortfolioImage(items) {
-  const imageItems = items.filter((item) => item.type === 'image');
+  const landscapeImageItems = items.filter(
+    (item) => item.type === 'image' && item.heightRatio < 1,
+  );
+  const imageItems = landscapeImageItems.length
+    ? landscapeImageItems
+    : items.filter((item) => item.type === 'image');
 
   if (imageItems.length === 0) {
     return undefined;
@@ -940,19 +959,43 @@ function App() {
               <MapPin size={19} aria-hidden="true" />
               Available for local and destination shoots
             </span>
+            <div className="contact-list__socials" aria-label="Social links">
+              {socialLinks.map(({ href, icon: Icon, label }) => (
+                <a href={href} target="_blank" rel="noreferrer" key={label}>
+                  <Icon size={19} aria-hidden="true" />
+                  {label}
+                </a>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
       <footer className="footer">
         <p>The Pepperazzi</p>
-        <a
-          className="footer__contact"
-          href={`mailto:${contactEmail}?subject=Photography%20and%20videography%20enquiry`}
-        >
-          <Mail size={17} aria-hidden="true" />
-          Get in touch
-        </a>
+        <div className="footer__actions">
+          <div className="footer__socials" aria-label="Social links">
+            {socialLinks.map(({ href, icon: Icon, label }) => (
+              <a
+                className="footer__social"
+                href={href}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={label}
+                key={label}
+              >
+                <Icon size={18} aria-hidden="true" />
+              </a>
+            ))}
+          </div>
+          <a
+            className="footer__contact"
+            href={`mailto:${contactEmail}?subject=Photography%20and%20videography%20enquiry`}
+          >
+            <Mail size={17} aria-hidden="true" />
+            Get in touch
+          </a>
+        </div>
       </footer>
 
       {isClientGalleryOpen && (
