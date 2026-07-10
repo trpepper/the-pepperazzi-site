@@ -456,7 +456,7 @@ function mediaManifestPlugin() {
     },
     configureServer(server) {
       const publicDir = getPublicDir(server.config);
-      const watchedMediaFolders = ['hero', 'portfolio', 'client_galleries'].map((folderName) =>
+      const watchedMediaFolders = ['hero', 'portfolio'].map((folderName) =>
         path.join(publicDir, 'media', folderName),
       );
 
@@ -465,7 +465,22 @@ function mediaManifestPlugin() {
         server.watcher.add(folderPath);
       });
 
-      const refreshMedia = (filePath) => {
+      const isRelevantMediaChange = (folderPath, filePath, eventType) => {
+        const filename = path.basename(filePath);
+        const isDirectoryEvent = eventType === 'addDir' || eventType === 'unlinkDir';
+
+        if (filename.startsWith('.')) {
+          return false;
+        }
+
+        if (isDirectoryEvent) {
+          return false;
+        }
+
+        return isMediaFile(filename);
+      };
+
+      const refreshMedia = (filePath, eventType) => {
         const folderPath = watchedMediaFolders.find((mediaFolder) => {
           const relativePath = path.relative(mediaFolder, filePath);
 
@@ -476,13 +491,11 @@ function mediaManifestPlugin() {
           return;
         }
 
-        const isClientGalleryPath = folderPath.endsWith(`${path.sep}client_galleries`);
-
-        if (!isClientGalleryPath && !isMediaFile(path.basename(filePath))) {
+        if (!isRelevantMediaChange(folderPath, filePath, eventType)) {
           return;
         }
 
-        let moduleId = resolvedClientGalleriesModuleId;
+        let moduleId;
 
         if (folderPath.endsWith(`${path.sep}hero`)) {
           moduleId = resolvedHeroMediaModuleId;
@@ -490,6 +503,10 @@ function mediaManifestPlugin() {
 
         if (folderPath.endsWith(`${path.sep}portfolio`)) {
           moduleId = resolvedPortfolioMediaModuleId;
+        }
+
+        if (!moduleId) {
+          return;
         }
 
         const module = server.moduleGraph.getModuleById(moduleId);
@@ -501,11 +518,11 @@ function mediaManifestPlugin() {
         server.ws.send({ type: 'full-reload' });
       };
 
-      server.watcher.on('add', refreshMedia);
-      server.watcher.on('addDir', refreshMedia);
-      server.watcher.on('unlink', refreshMedia);
-      server.watcher.on('unlinkDir', refreshMedia);
-      server.watcher.on('change', refreshMedia);
+      server.watcher.on('add', (filePath) => refreshMedia(filePath, 'add'));
+      server.watcher.on('addDir', (filePath) => refreshMedia(filePath, 'addDir'));
+      server.watcher.on('unlink', (filePath) => refreshMedia(filePath, 'unlink'));
+      server.watcher.on('unlinkDir', (filePath) => refreshMedia(filePath, 'unlinkDir'));
+      server.watcher.on('change', (filePath) => refreshMedia(filePath, 'change'));
     },
     resolveId(id) {
       if (id === heroMediaModuleId) {
@@ -542,4 +559,15 @@ function mediaManifestPlugin() {
 
 export default defineConfig({
   plugins: [react(), mediaManifestPlugin()],
+  server: {
+    watch: {
+      ignored: [
+        '**/.DS_Store',
+        '**/._*',
+        '**/.dropbox',
+        '**/.dropbox.attr',
+        '**/public/media/client_galleries/**',
+      ],
+    },
+  },
 });

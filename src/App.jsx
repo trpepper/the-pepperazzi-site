@@ -58,6 +58,7 @@ const services = [
 const includedClientImageCount = 3;
 const additionalClientImagePrice = 10;
 const contactEmail = 'trpepper@me.com';
+const clientGallerySessionKey = 'pepperazzi-client-gallery';
 const socialLinks = [
   {
     href: 'https://www.instagram.com/the_pepper_azzi/',
@@ -73,6 +74,40 @@ const socialLinks = [
 
 function sanitizeClientCode(value) {
   return value.replace(/\s+/g, '');
+}
+
+function getSavedClientGalleryState() {
+  const fallbackState = {
+    activeCode: '',
+    code: '',
+    hasSearched: false,
+    isOpen: false,
+  };
+
+  if (typeof window === 'undefined') {
+    return fallbackState;
+  }
+
+  try {
+    const savedState = window.sessionStorage.getItem(clientGallerySessionKey);
+
+    if (!savedState) {
+      return fallbackState;
+    }
+
+    const parsedState = JSON.parse(savedState);
+    const code = sanitizeClientCode(String(parsedState.code ?? ''));
+    const activeCode = sanitizeClientCode(String(parsedState.activeCode ?? code));
+
+    return {
+      activeCode,
+      code,
+      hasSearched: Boolean(parsedState.hasSearched && activeCode),
+      isOpen: Boolean(parsedState.isOpen),
+    };
+  } catch {
+    return fallbackState;
+  }
 }
 
 function formatPounds(value) {
@@ -313,6 +348,77 @@ function PortfolioMasonryItem({ canOpen, index, item, onOpen }) {
   );
 }
 
+function clampPercentage(value) {
+  return Math.min(Math.max(value, 0), 100);
+}
+
+function ClientGalleryProtectedImage({ image }) {
+  const [lens, setLens] = useState({ isActive: false, x: 50, y: 50 });
+
+  const updateLens = (event) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+
+    if (!bounds.width || !bounds.height) {
+      return;
+    }
+
+    setLens({
+      isActive: true,
+      x: clampPercentage(((event.clientX - bounds.left) / bounds.width) * 100),
+      y: clampPercentage(((event.clientY - bounds.top) / bounds.height) * 100),
+    });
+  };
+
+  const hideLens = () => {
+    setLens((currentLens) => ({ ...currentLens, isActive: false }));
+  };
+
+  const hideTouchLens = (event) => {
+    if (event.pointerType !== 'mouse') {
+      hideLens();
+    }
+  };
+
+  return (
+    <div
+      className={`client-gallery-card__media${lens.isActive ? ' is-revealing' : ''}`}
+      style={{
+        '--lens-x': `${lens.x}%`,
+        '--lens-y': `${lens.y}%`,
+      }}
+      onPointerCancel={hideLens}
+      onPointerDown={updateLens}
+      onPointerEnter={updateLens}
+      onPointerLeave={hideLens}
+      onPointerMove={updateLens}
+      onPointerUp={hideTouchLens}
+    >
+      <img
+        className="client-gallery-card__image client-gallery-card__image--blurred"
+        src={image.src}
+        alt={image.alt}
+        loading="lazy"
+        decoding="async"
+        draggable="false"
+      />
+      {lens.isActive && (
+        <>
+          <img
+            className="client-gallery-card__image client-gallery-card__image--lens"
+            src={image.src}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            draggable="false"
+            aria-hidden="true"
+          />
+          <span className="client-gallery-card__lens-ring" aria-hidden="true" />
+        </>
+      )}
+    </div>
+  );
+}
+
 function ClientGalleryPanel({
   activeCode,
   codeInput,
@@ -393,14 +499,7 @@ function ClientGalleryPanel({
                     className={`client-gallery-card${isSelected ? ' is-selected' : ''}`}
                     key={image.id}
                   >
-                    <div className="client-gallery-card__media">
-                      <img
-                        src={image.src}
-                        alt={image.alt}
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    </div>
+                    <ClientGalleryProtectedImage image={image} />
                     <button
                       className="client-gallery-card__select"
                       type="button"
@@ -446,15 +545,24 @@ function ClientGalleryPanel({
 }
 
 function App() {
+  const [initialClientGalleryState] = useState(getSavedClientGalleryState);
   const [activeSlide, setActiveSlide] = useState(0);
   const [activeMessage, setActiveMessage] = useState(0);
   const [activePortfolioFilter, setActivePortfolioFilter] = useState('all');
   const [activePortfolioItem, setActivePortfolioItem] = useState(null);
   const [canOpenPortfolioLightbox, setCanOpenPortfolioLightbox] = useState(false);
-  const [isClientGalleryOpen, setIsClientGalleryOpen] = useState(false);
-  const [clientGalleryCodeInput, setClientGalleryCodeInput] = useState('');
-  const [activeClientGalleryCode, setActiveClientGalleryCode] = useState('');
-  const [hasSearchedClientGallery, setHasSearchedClientGallery] = useState(false);
+  const [isClientGalleryOpen, setIsClientGalleryOpen] = useState(
+    initialClientGalleryState.isOpen,
+  );
+  const [clientGalleryCodeInput, setClientGalleryCodeInput] = useState(
+    initialClientGalleryState.code,
+  );
+  const [activeClientGalleryCode, setActiveClientGalleryCode] = useState(
+    initialClientGalleryState.activeCode,
+  );
+  const [hasSearchedClientGallery, setHasSearchedClientGallery] = useState(
+    initialClientGalleryState.hasSearched,
+  );
   const [selectedClientImageIds, setSelectedClientImageIds] = useState(
     () => new Set(),
   );
@@ -541,6 +649,34 @@ function App() {
       window.removeEventListener('keydown', closeOnEscape);
     };
   }, [activePortfolioItem, isClientGalleryOpen]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    if (!isClientGalleryOpen) {
+      window.sessionStorage.removeItem(clientGallerySessionKey);
+      return undefined;
+    }
+
+    window.sessionStorage.setItem(
+      clientGallerySessionKey,
+      JSON.stringify({
+        activeCode: activeClientGalleryCode,
+        code: clientGalleryCodeInput,
+        hasSearched: hasSearchedClientGallery,
+        isOpen: true,
+      }),
+    );
+
+    return undefined;
+  }, [
+    activeClientGalleryCode,
+    clientGalleryCodeInput,
+    hasSearchedClientGallery,
+    isClientGalleryOpen,
+  ]);
 
   useEffect(() => {
     setActiveSlide((currentSlide) =>
