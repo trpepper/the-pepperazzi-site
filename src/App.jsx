@@ -352,6 +352,18 @@ function clampPercentage(value) {
   return Math.min(Math.max(value, 0), 100);
 }
 
+function clampValue(value, minimum, maximum) {
+  if (maximum < minimum) {
+    return (minimum + maximum) / 2;
+  }
+
+  return Math.min(Math.max(value, minimum), maximum);
+}
+
+function preventClientImageContextMenu(event) {
+  event.preventDefault();
+}
+
 function ClientGalleryProtectedImage({ image }) {
   const [lens, setLens] = useState({ isActive: false, x: 50, y: 50 });
 
@@ -362,10 +374,33 @@ function ClientGalleryProtectedImage({ image }) {
       return;
     }
 
+    if (event.pointerType !== 'mouse' && event.currentTarget.setPointerCapture) {
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        // Pointer capture is helpful, but not required for the lens to work.
+      }
+    }
+
+    const lensRadius = Math.min(
+      74,
+      Math.max(42, (typeof window === 'undefined' ? 0 : window.innerWidth) * 0.06),
+      bounds.width / 2,
+      bounds.height / 2,
+    );
+    const touchOffset = Math.min(132, Math.max(86, bounds.height * 0.28));
+    const pointerX = event.clientX - bounds.left;
+    const pointerY = event.clientY - bounds.top;
+    const lensX = clampValue(pointerX, lensRadius, bounds.width - lensRadius);
+    const lensY =
+      event.pointerType === 'mouse'
+        ? clampValue(pointerY, lensRadius, bounds.height - lensRadius)
+        : clampValue(pointerY - touchOffset, lensRadius, bounds.height - lensRadius);
+
     setLens({
       isActive: true,
-      x: clampPercentage(((event.clientX - bounds.left) / bounds.width) * 100),
-      y: clampPercentage(((event.clientY - bounds.top) / bounds.height) * 100),
+      x: clampPercentage((lensX / bounds.width) * 100),
+      y: clampPercentage((lensY / bounds.height) * 100),
     });
   };
 
@@ -392,6 +427,7 @@ function ClientGalleryProtectedImage({ image }) {
       onPointerLeave={hideLens}
       onPointerMove={updateLens}
       onPointerUp={hideTouchLens}
+      onContextMenu={preventClientImageContextMenu}
     >
       <img
         className="client-gallery-card__image client-gallery-card__image--blurred"
@@ -400,6 +436,8 @@ function ClientGalleryProtectedImage({ image }) {
         loading="lazy"
         decoding="async"
         draggable="false"
+        onContextMenu={preventClientImageContextMenu}
+        onDragStart={preventClientImageContextMenu}
       />
       {lens.isActive && (
         <>
@@ -411,6 +449,8 @@ function ClientGalleryProtectedImage({ image }) {
             decoding="async"
             draggable="false"
             aria-hidden="true"
+            onContextMenu={preventClientImageContextMenu}
+            onDragStart={preventClientImageContextMenu}
           />
           <span className="client-gallery-card__lens-ring" aria-hidden="true" />
         </>
