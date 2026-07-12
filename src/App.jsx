@@ -58,6 +58,7 @@ const services = [
 const includedClientImageCount = 3;
 const additionalClientImagePrice = 10;
 const contactEmail = 'trpepper@me.com';
+const clientGalleryEmail = 'photos@thepepperazzi.co.uk';
 const clientGallerySessionKey = 'pepperazzi-client-gallery';
 const socialLinks = [
   {
@@ -906,7 +907,7 @@ function App() {
       selectedList,
     ].join('\n');
 
-    window.location.href = `mailto:${contactEmail}?subject=${encodeURIComponent(
+    window.location.href = `mailto:${clientGalleryEmail}?subject=${encodeURIComponent(
       subject,
     )}&body=${encodeURIComponent(body)}`;
   };
