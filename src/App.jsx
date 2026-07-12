@@ -472,13 +472,88 @@ function ClientGalleryPanel({
   onToggleImage,
   selectedImageIds,
 }) {
+  const panelRef = useRef(null);
+  const scrollDragRef = useRef(null);
+  const [isScrollHandleActive, setIsScrollHandleActive] = useState(false);
   const images = gallery?.images ?? [];
   const selectedCount = selectedImageIds.size;
   const paidImageCount = Math.max(selectedCount - includedClientImageCount, 0);
   const totalCost = paidImageCount * additionalClientImagePrice;
+  const startScrollDrag = (event) => {
+    const panel = panelRef.current;
+
+    if (!panel) {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (event.currentTarget.setPointerCapture) {
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        // Losing pointer capture only falls back to native touch scrolling.
+      }
+    }
+
+    scrollDragRef.current = {
+      pointerId: event.pointerId,
+      startScrollTop: panel.scrollTop,
+      startY: event.clientY,
+    };
+    setIsScrollHandleActive(true);
+  };
+  const moveScrollDrag = (event) => {
+    const panel = panelRef.current;
+    const drag = scrollDragRef.current;
+
+    if (!panel || !drag || drag.pointerId !== event.pointerId) {
+      return;
+    }
+
+    event.preventDefault();
+    panel.scrollTop = drag.startScrollTop + (event.clientY - drag.startY) * 2.35;
+  };
+  const stopScrollDrag = (event) => {
+    const drag = scrollDragRef.current;
+
+    if (!drag || drag.pointerId !== event.pointerId) {
+      return;
+    }
+
+    if (event.currentTarget.releasePointerCapture) {
+      try {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      } catch {
+        // The pointer may already be released by the browser.
+      }
+    }
+
+    scrollDragRef.current = null;
+    setIsScrollHandleActive(false);
+  };
 
   return (
-    <section className="client-gallery-panel" aria-label="Client photo gallery">
+    <section
+      className="client-gallery-panel"
+      ref={panelRef}
+      aria-label="Client photo gallery"
+    >
+      {gallery && images.length > 0 && (
+        <button
+          className={`client-gallery-panel__scroll-handle${
+            isScrollHandleActive ? ' is-active' : ''
+          }`}
+          type="button"
+          aria-label="Scroll client gallery"
+          onPointerCancel={stopScrollDrag}
+          onPointerDown={startScrollDrag}
+          onPointerMove={moveScrollDrag}
+          onPointerUp={stopScrollDrag}
+        >
+          <span aria-hidden="true" />
+        </button>
+      )}
       <header className="client-gallery-panel__header">
         <div>
           <p className="eyebrow">Client gallery</p>
