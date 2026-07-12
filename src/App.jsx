@@ -57,7 +57,7 @@ const services = [
 
 const includedClientImageCount = 3;
 const additionalClientImagePrice = 10;
-const contactEmail = 'trpepper@me.com';
+const contactEmail = 'hello@thepepperazzi.co.uk';
 const clientGalleryEmail = 'photos@thepepperazzi.co.uk';
 const clientGallerySessionKey = 'pepperazzi-client-gallery';
 const socialLinks = [
