@@ -498,9 +498,9 @@ function ClientGalleryPanel({
         <div className="client-gallery-panel__lookup-row">
           <input
             id="client-gallery-code"
-            inputMode="numeric"
+            inputMode="text"
             autoComplete="one-time-code"
-            placeholder="07964907393"
+            placeholder="Your code"
             value={codeInput}
             onChange={(event) => onCodeChange(event.target.value)}
           />
