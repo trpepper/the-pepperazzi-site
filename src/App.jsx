@@ -383,9 +383,13 @@ function ClientGalleryProtectedImage({ image }) {
       }
     }
 
+    const lensScale = event.pointerType === 'mouse' ? 1 : 1.68;
     const lensRadius = Math.min(
-      74,
-      Math.max(42, (typeof window === 'undefined' ? 0 : window.innerWidth) * 0.06),
+      74 * lensScale,
+      Math.max(
+        42 * lensScale,
+        (typeof window === 'undefined' ? 0 : window.innerWidth) * 0.06 * lensScale,
+      ),
       bounds.width / 2,
       bounds.height / 2,
     );
