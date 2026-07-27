@@ -816,7 +816,7 @@ h3 {
   position: relative;
   overflow: hidden;
   background: var(--soft);
-  cursor: crosshair;
+  cursor: none;
   touch-action: none;
   user-select: none;
   -webkit-touch-callout: none;
@@ -841,7 +841,7 @@ h3 {
 }
 
 .client-gallery-card__image--blurred {
-  filter: blur(1px) saturate(0.74) contrast(0.84);
+  filter: blur(1px);
   transform: scale(1.06);
   transform-origin: center;
 }
@@ -853,7 +853,6 @@ h3 {
   height: 100%;
   object-fit: cover;
   opacity: 0;
-  filter: saturate(0.96) contrast(0.98);
   clip-path: circle(var(--client-gallery-lens-radius) at var(--lens-x) var(--lens-y));
   pointer-events: none;
   transition: opacity 120ms ease;
