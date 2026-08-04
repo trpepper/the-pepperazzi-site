@@ -55,11 +55,24 @@ const services = [
   },
 ];
 
-const includedClientImageCount = 3;
-const additionalClientImagePrice = 10;
+const fallbackClientGalleryOffer = {
+  freeImages: 3,
+  offerText:
+    'Your package includes 3 full resolution images. Additional selected images are £10 each.',
+  pricePerImage: 10,
+};
 const contactEmail = 'hello@thepepperazzi.co.uk';
 const clientGalleryEmail = 'photos@thepepperazzi.co.uk';
 const clientGallerySessionKey = 'pepperazzi-client-gallery';
+const reservedClientGalleryRouteSegments = new Set([
+  'assets',
+  'brand',
+  'contact',
+  'home',
+  'media',
+  'packages',
+  'portfolio',
+]);
 const socialLinks = [
   {
     href: 'https://www.instagram.com/the_pepper_azzi/',
@@ -77,6 +90,89 @@ function sanitizeClientCode(value) {
   return value.replace(/\s+/g, '');
 }
 
+function getCanonicalClientGalleryCode(value) {
+  const code = sanitizeClientCode(String(value ?? ''));
+
+  if (!code) {
+    return '';
+  }
+
+  if (clientGalleries[code]) {
+    return code;
+  }
+
+  const lowerCode = code.toLowerCase();
+  const matchingCode = Object.keys(clientGalleries).find(
+    (galleryCode) => galleryCode.toLowerCase() === lowerCode,
+  );
+
+  return matchingCode ?? code;
+}
+
+function getClientGalleryCodeFromPathname(pathname) {
+  const pathSegments = pathname.split('/').filter(Boolean);
+
+  if (pathSegments.length !== 1) {
+    return '';
+  }
+
+  let decodedSegment;
+
+  try {
+    decodedSegment = decodeURIComponent(pathSegments[0]);
+  } catch {
+    decodedSegment = pathSegments[0];
+  }
+
+  const code = sanitizeClientCode(decodedSegment);
+
+  if (
+    !code ||
+    code.includes('.') ||
+    reservedClientGalleryRouteSegments.has(code.toLowerCase())
+  ) {
+    return '';
+  }
+
+  const canonicalCode = getCanonicalClientGalleryCode(code);
+
+  return clientGalleries[canonicalCode] ? canonicalCode : '';
+}
+
+function getCurrentClientGalleryRouteCode() {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  return getClientGalleryCodeFromPathname(window.location.pathname);
+}
+
+function getClientGalleryRoutePath(code) {
+  return `/${encodeURIComponent(code)}`;
+}
+
+function pushClientGalleryRoute(code) {
+  if (typeof window === 'undefined' || !code) {
+    return;
+  }
+
+  const nextPath = getClientGalleryRoutePath(code);
+
+  if (window.location.pathname === nextPath) {
+    return;
+  }
+
+  window.history.pushState({}, '', nextPath);
+}
+
+function clearClientGalleryRoute() {
+  if (typeof window === 'undefined' || !getCurrentClientGalleryRouteCode()) {
+    return;
+  }
+
+  window.history.pushState({}, '', '/');
+}
+
 function getSavedClientGalleryState() {
   const fallbackState = {
     activeCode: '',
@@ -87,6 +183,17 @@ function getSavedClientGalleryState() {
 
   if (typeof window === 'undefined') {
     return fallbackState;
+  }
+
+  const routedCode = getCurrentClientGalleryRouteCode();
+
+  if (routedCode) {
+    return {
+      activeCode: routedCode,
+      code: routedCode,
+      hasSearched: true,
+      isOpen: true,
+    };
   }
 
   try {
@@ -112,7 +219,38 @@ function getSavedClientGalleryState() {
 }
 
 function formatPounds(value) {
-  return `£${value}`;
+  const numberValue = Number(value);
+
+  if (!Number.isFinite(numberValue)) {
+    return '£0';
+  }
+
+  return `£${Number.isInteger(numberValue) ? numberValue : numberValue.toFixed(2)}`;
+}
+
+function normalizeOfferNumber(value, fallbackValue) {
+  const numberValue = Number(value);
+
+  return Number.isFinite(numberValue) && numberValue >= 0 ? numberValue : fallbackValue;
+}
+
+function getClientGalleryOffer(gallery) {
+  const offer = gallery?.offer ?? {};
+  const offerText =
+    typeof offer.offerText === 'string' && offer.offerText.trim()
+      ? offer.offerText.trim()
+      : fallbackClientGalleryOffer.offerText;
+
+  return {
+    freeImages: Math.floor(
+      normalizeOfferNumber(offer.freeImages, fallbackClientGalleryOffer.freeImages),
+    ),
+    offerText,
+    pricePerImage: normalizeOfferNumber(
+      offer.pricePerImage,
+      fallbackClientGalleryOffer.pricePerImage,
+    ),
+  };
 }
 
 function shuffleItems(items) {
@@ -480,9 +618,10 @@ function ClientGalleryPanel({
   const scrollDragRef = useRef(null);
   const [isScrollHandleActive, setIsScrollHandleActive] = useState(false);
   const images = gallery?.images ?? [];
+  const offer = getClientGalleryOffer(gallery);
   const selectedCount = selectedImageIds.size;
-  const paidImageCount = Math.max(selectedCount - includedClientImageCount, 0);
-  const totalCost = paidImageCount * additionalClientImagePrice;
+  const paidImageCount = Math.max(selectedCount - offer.freeImages, 0);
+  const totalCost = paidImageCount * offer.pricePerImage;
   const startScrollDrag = (event) => {
     const panel = panelRef.current;
 
@@ -600,13 +739,7 @@ function ClientGalleryPanel({
       {gallery && (
         <>
           <div className="client-gallery-notice">
-            <p>
-              Three full resolution images are included in your package. Select which
-              three you would like and we will send them to your email address. If
-              you wish to purchase more than the 3 included images, each additional
-              image is £10 and we will send a payment link for you to complete the
-              purchase.
-            </p>
+            <p>{offer.offerText}</p>
           </div>
 
           {images.length > 0 ? (
@@ -756,6 +889,7 @@ function App() {
     const closeOnEscape = (event) => {
       if (event.key === 'Escape') {
         setActivePortfolioItem(null);
+        clearClientGalleryRoute();
         setIsClientGalleryOpen(false);
       }
     };
@@ -797,6 +931,31 @@ function App() {
     hasSearchedClientGallery,
     isClientGalleryOpen,
   ]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const syncClientGalleryRoute = () => {
+      const routedCode = getCurrentClientGalleryRouteCode();
+
+      if (!routedCode) {
+        setIsClientGalleryOpen(false);
+        return;
+      }
+
+      setClientGalleryCodeInput(routedCode);
+      setActiveClientGalleryCode(routedCode);
+      setHasSearchedClientGallery(true);
+      setSelectedClientImageIds(new Set());
+      setIsClientGalleryOpen(true);
+    };
+
+    window.addEventListener('popstate', syncClientGalleryRoute);
+
+    return () => window.removeEventListener('popstate', syncClientGalleryRoute);
+  }, []);
 
   useEffect(() => {
     setActiveSlide((currentSlide) =>
@@ -927,7 +1086,10 @@ function App() {
 
   const openClientGallery = () => setIsClientGalleryOpen(true);
 
-  const closeClientGallery = () => setIsClientGalleryOpen(false);
+  const closeClientGallery = () => {
+    setIsClientGalleryOpen(false);
+    clearClientGalleryRoute();
+  };
 
   const updateClientGalleryCode = (value) => {
     setClientGalleryCodeInput(sanitizeClientCode(value));
@@ -937,11 +1099,19 @@ function App() {
     event.preventDefault();
 
     const sanitizedCode = sanitizeClientCode(clientGalleryCodeInput);
+    const canonicalCode = getCanonicalClientGalleryCode(sanitizedCode);
+    const nextCode = clientGalleries[canonicalCode] ? canonicalCode : sanitizedCode;
 
-    setClientGalleryCodeInput(sanitizedCode);
-    setActiveClientGalleryCode(sanitizedCode);
+    setClientGalleryCodeInput(nextCode);
+    setActiveClientGalleryCode(nextCode);
     setHasSearchedClientGallery(true);
     setSelectedClientImageIds(new Set());
+
+    if (clientGalleries[nextCode]) {
+      pushClientGalleryRoute(nextCode);
+    } else {
+      clearClientGalleryRoute();
+    }
   };
 
   const toggleClientImage = (imageId) => {
@@ -963,23 +1133,24 @@ function App() {
       return;
     }
 
-    const paidImageCount = Math.max(
-      selectedClientImages.length - includedClientImageCount,
-      0,
-    );
-    const totalCost = paidImageCount * additionalClientImagePrice;
+    const offer = getClientGalleryOffer(activeClientGallery);
+    const paidImageCount = Math.max(selectedClientImages.length - offer.freeImages, 0);
+    const totalCost = paidImageCount * offer.pricePerImage;
     const selectedList = selectedClientImages
       .map((image) => `- ${image.filename}`)
       .join('\n');
     const subject = `Client image request ${activeClientGalleryCode}`;
     const body = [
       `Client gallery code: ${activeClientGalleryCode}`,
+      `Offer: ${offer.offerText}`,
       `Selected images: ${selectedClientImages.length}`,
+      `Free images allowed: ${offer.freeImages}`,
       `Included images: ${Math.min(
         selectedClientImages.length,
-        includedClientImageCount,
+        offer.freeImages,
       )}`,
       `Additional paid images: ${paidImageCount}`,
+      `Price per additional image: ${formatPounds(offer.pricePerImage)}`,
       `Amount due: ${formatPounds(totalCost)}`,
       '',
       'Requested images:',

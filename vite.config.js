@@ -17,6 +17,12 @@ const videoMimeTypes = {
   '.mp4': 'video/mp4',
   '.webm': 'video/webm',
 };
+const defaultClientGalleryOffer = {
+  freeImages: 3,
+  offerText:
+    'Your package includes 3 full resolution images. Additional selected images are £10 each.',
+  pricePerImage: 10,
+};
 
 const fallbackHeroSlides = [
   {
@@ -108,6 +114,75 @@ function toTitle(filename) {
 
 function toSafeIdent(value) {
   return value.toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
+}
+
+function getFirstDefinedValue(source, keys) {
+  return keys.find((key) => source[key] !== undefined);
+}
+
+function normalizeNonNegativeNumber(value, fallbackValue) {
+  const numberValue = Number(value);
+
+  return Number.isFinite(numberValue) && numberValue >= 0 ? numberValue : fallbackValue;
+}
+
+function getClientGalleryOffer(galleryDir) {
+  const offerPath = path.join(galleryDir, 'offer.json');
+
+  if (!fs.existsSync(offerPath)) {
+    return defaultClientGalleryOffer;
+  }
+
+  try {
+    const offer = JSON.parse(fs.readFileSync(offerPath, 'utf8'));
+
+    if (!offer || typeof offer !== 'object' || Array.isArray(offer)) {
+      return defaultClientGalleryOffer;
+    }
+
+    const freeImagesKey = getFirstDefinedValue(offer, [
+      'freeImages',
+      'freeImageCount',
+      'freeItems',
+      'freeItemCount',
+      'free_images',
+      'free_items',
+      'free images',
+      'Free images',
+    ]);
+    const pricePerImageKey = getFirstDefinedValue(offer, [
+      'pricePerImage',
+      'additionalImagePrice',
+      'price_per_image',
+      'additional_image_price',
+      'price',
+      'Price per image',
+    ]);
+    const offerText =
+      typeof offer.offerText === 'string' && offer.offerText.trim()
+        ? offer.offerText.trim()
+        : typeof offer.offer === 'string' && offer.offer.trim()
+          ? offer.offer.trim()
+          : defaultClientGalleryOffer.offerText;
+
+    return {
+      freeImages: Math.floor(
+        normalizeNonNegativeNumber(
+          freeImagesKey ? offer[freeImagesKey] : undefined,
+          defaultClientGalleryOffer.freeImages,
+        ),
+      ),
+      offerText,
+      pricePerImage: normalizeNonNegativeNumber(
+        pricePerImageKey ? offer[pricePerImageKey] : undefined,
+        defaultClientGalleryOffer.pricePerImage,
+      ),
+    };
+  } catch (error) {
+    console.warn(`Could not read ${offerPath}: ${error.message}`);
+
+    return defaultClientGalleryOffer;
+  }
 }
 
 function findPosterForVideo(videoFile, allFiles, publicPath) {
@@ -428,6 +503,7 @@ function getClientGalleries(config) {
 
       galleries[entry.name] = {
         code: entry.name,
+        offer: getClientGalleryOffer(galleryDir),
         images: files.map((filename) => {
           const id = path.basename(filename, path.extname(filename));
           const label = toTitle(filename) || 'Client gallery image';
@@ -456,60 +532,68 @@ function mediaManifestPlugin() {
     },
     configureServer(server) {
       const publicDir = getPublicDir(server.config);
-      const watchedMediaFolders = ['hero', 'portfolio'].map((folderName) =>
-        path.join(publicDir, 'media', folderName),
-      );
+      const watchedMediaFolders = [
+        {
+          folderPath: path.join(publicDir, 'media', 'hero'),
+          moduleId: resolvedHeroMediaModuleId,
+        },
+        {
+          folderPath: path.join(publicDir, 'media', 'portfolio'),
+          moduleId: resolvedPortfolioMediaModuleId,
+        },
+        {
+          folderPath: path.join(publicDir, 'media', 'client_galleries'),
+          moduleId: resolvedClientGalleriesModuleId,
+        },
+      ];
 
-      watchedMediaFolders.forEach((folderPath) => {
+      watchedMediaFolders.forEach(({ folderPath }) => {
         fs.mkdirSync(folderPath, { recursive: true });
         server.watcher.add(folderPath);
       });
 
-      const isRelevantMediaChange = (folderPath, filePath, eventType) => {
+      const isRelevantMediaChange = ({ folderPath }, filePath, eventType) => {
         const filename = path.basename(filePath);
         const isDirectoryEvent = eventType === 'addDir' || eventType === 'unlinkDir';
+        const isClientGalleryChange = folderPath.endsWith(
+          `${path.sep}client_galleries`,
+        );
 
         if (filename.startsWith('.')) {
           return false;
         }
 
         if (isDirectoryEvent) {
-          return false;
+          return isClientGalleryChange;
+        }
+
+        if (isClientGalleryChange && filename === 'offer.json') {
+          return true;
+        }
+
+        if (isClientGalleryChange) {
+          return isImageFile(filename);
         }
 
         return isMediaFile(filename);
       };
 
       const refreshMedia = (filePath, eventType) => {
-        const folderPath = watchedMediaFolders.find((mediaFolder) => {
-          const relativePath = path.relative(mediaFolder, filePath);
+        const mediaFolder = watchedMediaFolders.find(({ folderPath }) => {
+          const relativePath = path.relative(folderPath, filePath);
 
           return relativePath && !relativePath.startsWith('..') && !path.isAbsolute(relativePath);
         });
 
-        if (!folderPath) {
+        if (!mediaFolder) {
           return;
         }
 
-        if (!isRelevantMediaChange(folderPath, filePath, eventType)) {
+        if (!isRelevantMediaChange(mediaFolder, filePath, eventType)) {
           return;
         }
 
-        let moduleId;
-
-        if (folderPath.endsWith(`${path.sep}hero`)) {
-          moduleId = resolvedHeroMediaModuleId;
-        }
-
-        if (folderPath.endsWith(`${path.sep}portfolio`)) {
-          moduleId = resolvedPortfolioMediaModuleId;
-        }
-
-        if (!moduleId) {
-          return;
-        }
-
-        const module = server.moduleGraph.getModuleById(moduleId);
+        const module = server.moduleGraph.getModuleById(mediaFolder.moduleId);
 
         if (module) {
           server.moduleGraph.invalidateModule(module);
@@ -566,7 +650,6 @@ export default defineConfig({
         '**/._*',
         '**/.dropbox',
         '**/.dropbox.attr',
-        '**/public/media/client_galleries/**',
       ],
     },
   },

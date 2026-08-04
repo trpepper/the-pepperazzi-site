@@ -91,11 +91,37 @@ public/media/client_galleries/07964907393/
 Images inside that folder are shown when the client opens `Get my photos` and
 enters the matching code with spaces removed.
 
+Each client gallery also has a direct URL using the folder name as the path:
+
+```text
+https://www.thepepperazzi.co.uk/07964907393
+```
+
+For example, a folder named `shewrex` opens at:
+
+```text
+https://www.thepepperazzi.co.uk/shewrex
+```
+
 ```text
 public/media/client_galleries/07964907393/001.webp
 public/media/client_galleries/07964907393/002.webp
 public/media/client_galleries/07964907393/003.webp
 ```
+
+Add an `offer.json` file inside each client gallery folder to control the
+included image allowance and additional image pricing:
+
+```json
+{
+  "freeImages": 3,
+  "offerText": "Your package includes 3 full resolution images. Additional selected images are £10 each.",
+  "pricePerImage": 10
+}
+```
+
+Set `freeImages` to `0` when the calculator should charge from the first
+selected image.
 
 Supported client gallery files:
 
