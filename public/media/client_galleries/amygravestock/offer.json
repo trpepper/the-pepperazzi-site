@@ -1,5 +1,6 @@
 {
   "freeImages": 3,
   "offerText": "Your package includes 3 full resolution images. Additional selected images are £10 each.",
-  "pricePerImage": 10
+  "pricePerImage": 10,
+  "priceForAllImages": 35
 }

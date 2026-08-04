@@ -22,6 +22,7 @@ const defaultClientGalleryOffer = {
   offerText:
     'Your package includes 3 full resolution images. Additional selected images are £10 each.',
   pricePerImage: 10,
+  priceForAllImages: null,
 };
 
 const fallbackHeroSlides = [
@@ -126,6 +127,16 @@ function normalizeNonNegativeNumber(value, fallbackValue) {
   return Number.isFinite(numberValue) && numberValue >= 0 ? numberValue : fallbackValue;
 }
 
+function normalizeOptionalNonNegativeNumber(value) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  const numberValue = Number(value);
+
+  return Number.isFinite(numberValue) && numberValue >= 0 ? numberValue : null;
+}
+
 function getClientGalleryOffer(galleryDir) {
   const offerPath = path.join(galleryDir, 'offer.json');
 
@@ -158,6 +169,15 @@ function getClientGalleryOffer(galleryDir) {
       'price',
       'Price per image',
     ]);
+    const priceForAllImagesKey = getFirstDefinedValue(offer, [
+      'priceForAllImages',
+      'allImagesPrice',
+      'fullGalleryPrice',
+      'price_for_all_images',
+      'all_images_price',
+      'full_gallery_price',
+      'Price for all images',
+    ]);
     const offerText =
       typeof offer.offerText === 'string' && offer.offerText.trim()
         ? offer.offerText.trim()
@@ -176,6 +196,9 @@ function getClientGalleryOffer(galleryDir) {
       pricePerImage: normalizeNonNegativeNumber(
         pricePerImageKey ? offer[pricePerImageKey] : undefined,
         defaultClientGalleryOffer.pricePerImage,
+      ),
+      priceForAllImages: normalizeOptionalNonNegativeNumber(
+        priceForAllImagesKey ? offer[priceForAllImagesKey] : undefined,
       ),
     };
   } catch (error) {

@@ -938,12 +938,19 @@ h3 {
   line-height: 1;
 }
 
+.client-gallery-summary__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  justify-self: end;
+  gap: 10px;
+}
+
 .client-gallery-summary__request {
   display: inline-flex;
   min-height: 46px;
   align-items: center;
   justify-content: center;
-  justify-self: end;
   gap: 9px;
   border: 0;
   border-radius: 999px;
@@ -952,6 +959,11 @@ h3 {
   background: var(--white);
   cursor: pointer;
   font-weight: 800;
+}
+
+.client-gallery-summary__purchase-all {
+  color: var(--ink);
+  background: var(--gold);
 }
 
 .client-gallery-summary__request:disabled {
@@ -1304,9 +1316,13 @@ h3 {
     gap: 10px;
   }
 
-  .client-gallery-summary__request {
+  .client-gallery-summary__actions {
     grid-column: 1 / -1;
     justify-self: stretch;
+  }
+
+  .client-gallery-summary__request {
+    flex: 1 1 160px;
   }
 
   .portfolio-masonry {

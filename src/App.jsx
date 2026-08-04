@@ -12,6 +12,7 @@ import {
   MapPin,
   Pause,
   Play,
+  ShoppingCart,
   X,
 } from 'lucide-react';
 import clientGalleries from 'virtual:client-galleries';
@@ -60,6 +61,7 @@ const fallbackClientGalleryOffer = {
   offerText:
     'Your package includes 3 full resolution images. Additional selected images are £10 each.',
   pricePerImage: 10,
+  priceForAllImages: null,
 };
 const contactEmail = 'hello@thepepperazzi.co.uk';
 const clientGalleryEmail = 'photos@thepepperazzi.co.uk';
@@ -234,6 +236,16 @@ function normalizeOfferNumber(value, fallbackValue) {
   return Number.isFinite(numberValue) && numberValue >= 0 ? numberValue : fallbackValue;
 }
 
+function normalizeOptionalOfferNumber(value) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  const numberValue = Number(value);
+
+  return Number.isFinite(numberValue) && numberValue >= 0 ? numberValue : null;
+}
+
 function getClientGalleryOffer(gallery) {
   const offer = gallery?.offer ?? {};
   const offerText =
@@ -250,6 +262,7 @@ function getClientGalleryOffer(gallery) {
       offer.pricePerImage,
       fallbackClientGalleryOffer.pricePerImage,
     ),
+    priceForAllImages: normalizeOptionalOfferNumber(offer.priceForAllImages),
   };
 }
 
@@ -609,6 +622,7 @@ function ClientGalleryPanel({
   hasSearched,
   onClose,
   onCodeChange,
+  onPurchaseAllImages,
   onRequestImages,
   onSearch,
   onToggleImage,
@@ -622,6 +636,7 @@ function ClientGalleryPanel({
   const selectedCount = selectedImageIds.size;
   const paidImageCount = Math.max(selectedCount - offer.freeImages, 0);
   const totalCost = paidImageCount * offer.pricePerImage;
+  const hasAllImagesPrice = offer.priceForAllImages !== null;
   const startScrollDrag = (event) => {
     const panel = panelRef.current;
 
@@ -781,15 +796,28 @@ function ClientGalleryPanel({
               <span>Total</span>
               <strong>{formatPounds(totalCost)}</strong>
             </div>
-            <button
-              className="client-gallery-summary__request"
-              type="button"
-              disabled={selectedCount === 0}
-              onClick={onRequestImages}
-            >
-              <Mail size={17} aria-hidden="true" />
-              Request Images
-            </button>
+            <div className="client-gallery-summary__actions">
+              <button
+                className="client-gallery-summary__request"
+                type="button"
+                disabled={selectedCount === 0}
+                onClick={onRequestImages}
+              >
+                <Mail size={17} aria-hidden="true" />
+                Request Images
+              </button>
+              {hasAllImagesPrice && (
+                <button
+                  className="client-gallery-summary__request client-gallery-summary__purchase-all"
+                  type="button"
+                  disabled={images.length === 0}
+                  onClick={onPurchaseAllImages}
+                >
+                  <ShoppingCart size={17} aria-hidden="true" />
+                  Buy all {formatPounds(offer.priceForAllImages)}
+                </button>
+              )}
+            </div>
           </div>
         </>
       )}
@@ -1162,6 +1190,33 @@ function App() {
     )}&body=${encodeURIComponent(body)}`;
   };
 
+  const purchaseAllClientImages = () => {
+    if (!activeClientGallery) {
+      return;
+    }
+
+    const offer = getClientGalleryOffer(activeClientGallery);
+
+    if (offer.priceForAllImages === null) {
+      return;
+    }
+
+    const subject = `Client full gallery purchase ${activeClientGalleryCode}`;
+    const body = [
+      `Client gallery code: ${activeClientGalleryCode}`,
+      `Offer: ${offer.offerText}`,
+      `Full gallery image count: ${activeClientGallery.images.length}`,
+      `Full gallery price: ${formatPounds(offer.priceForAllImages)}`,
+      '',
+      'Requested purchase:',
+      'All images in this gallery',
+    ].join('\n');
+
+    window.location.href = `mailto:${clientGalleryEmail}?subject=${encodeURIComponent(
+      subject,
+    )}&body=${encodeURIComponent(body)}`;
+  };
+
   return (
     <main className="site-shell">
       <header className="topbar" aria-label="Main navigation">
@@ -1433,6 +1488,7 @@ function App() {
           hasSearched={hasSearchedClientGallery}
           onClose={closeClientGallery}
           onCodeChange={updateClientGalleryCode}
+          onPurchaseAllImages={purchaseAllClientImages}
           onRequestImages={requestClientImages}
           onSearch={searchClientGallery}
           onToggleImage={toggleClientImage}

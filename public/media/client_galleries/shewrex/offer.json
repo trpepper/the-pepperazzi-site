@@ -1,5 +1,6 @@
 {
   "freeImages": 0,
-  "offerText": "To view the images, move your finger over the thumbnails to reveal a clearer view.Each selected image is £10. ",
-  "pricePerImage": 10
+  "offerText": "To view the images, move your finger over the thumbnails to reveal a clearer view. Each selected image is £10. We will send a payment link for you to complete the purchase and you will receive the images via email.",
+  "pricePerImage": 10,
+  "priceForAllImages": 100
 }

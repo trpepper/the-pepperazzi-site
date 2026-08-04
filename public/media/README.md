@@ -116,12 +116,14 @@ included image allowance and additional image pricing:
 {
   "freeImages": 3,
   "offerText": "Your package includes 3 full resolution images. Additional selected images are £10 each.",
-  "pricePerImage": 10
+  "pricePerImage": 10,
+  "priceForAllImages": null
 }
 ```
 
 Set `freeImages` to `0` when the calculator should charge from the first
-selected image.
+selected image. Set `priceForAllImages` to a number, such as `120`, to show
+the purchase-all button. Leave it as `null` to hide that button.
 
 Supported client gallery files:
 

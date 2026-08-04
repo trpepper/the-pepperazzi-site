@@ -1,5 +1,6 @@
 {
   "freeImages": 3,
-  "offerText": "Your package includes 3 full resolution images. Additional selected images are £10 each.",
-  "pricePerImage": 10
+  "offerText": "To view the images, move your finger over the thumbnails to reveal a clearer view. Three full resolution images are included in your package. Select which three you would like and we will send them to your email address. If you wish to purchase more than the 3 included images, each additional image is £10 and we will send a payment link for you to complete the purchase.",
+  "pricePerImage": 10,
+  "priceForAllImages": null
 }
