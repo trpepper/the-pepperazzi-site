@@ -9,6 +9,7 @@ const clientGalleriesModuleId = 'virtual:client-galleries';
 const resolvedHeroMediaModuleId = `\0${heroMediaModuleId}`;
 const resolvedPortfolioMediaModuleId = `\0${portfolioMediaModuleId}`;
 const resolvedClientGalleriesModuleId = `\0${clientGalleriesModuleId}`;
+const clientGalleryAppShellPath = '/__client-gallery/';
 
 const imageExtensions = new Set(['.avif', '.gif', '.jpg', '.jpeg', '.png', '.webp']);
 const videoExtensions = new Set(['.mp4', '.mov', '.webm']);
@@ -562,8 +563,8 @@ function getClientGalleryRedirects(config) {
     const pathSegment = encodeURIComponent(code);
 
     return [
-      `/${pathSegment} / 200`,
-      `/${pathSegment}/ / 200`,
+      `/${pathSegment} ${clientGalleryAppShellPath} 200`,
+      `/${pathSegment}/ ${clientGalleryAppShellPath} 200`,
     ];
   });
 
@@ -575,11 +576,23 @@ function getClientGalleryRedirects(config) {
   ].join('\n');
 }
 
-function writeClientGalleryRedirects(config) {
+function writeClientGalleryBuildFiles(config) {
   const outDir = getBuildOutDir(config);
+  const indexPath = path.join(outDir, 'index.html');
+  const appShellDir = path.join(
+    outDir,
+    clientGalleryAppShellPath.replace(/^\/|\/$/g, ''),
+  );
 
   fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(path.join(outDir, '_redirects'), getClientGalleryRedirects(config));
+
+  if (!fs.existsSync(indexPath)) {
+    return;
+  }
+
+  fs.mkdirSync(appShellDir, { recursive: true });
+  fs.copyFileSync(indexPath, path.join(appShellDir, 'index.html'));
 }
 
 function mediaManifestPlugin() {
@@ -699,7 +712,7 @@ function mediaManifestPlugin() {
       return undefined;
     },
     writeBundle() {
-      writeClientGalleryRedirects(config);
+      writeClientGalleryBuildFiles(config);
     },
   };
 }
