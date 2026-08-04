@@ -562,8 +562,8 @@ function getClientGalleryRedirects(config) {
     const pathSegment = encodeURIComponent(code);
 
     return [
-      `/${pathSegment} /index.html 200`,
-      `/${pathSegment}/ /index.html 200`,
+      `/${pathSegment} / 200`,
+      `/${pathSegment}/ / 200`,
     ];
   });
 
